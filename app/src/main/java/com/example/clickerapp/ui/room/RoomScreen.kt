@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.clickerapp.R
+import com.example.clickerapp.util.NumberFormatter
 import com.example.clickerapp.viewmodel.GameViewModel
 import com.example.clickerapp.viewmodel.fridgeCost
 import com.example.clickerapp.viewmodel.printerCost
@@ -75,7 +76,7 @@ fun RoomScreen(
                 title = stringResource(R.string.room_fridge),
                 description = stringResource(R.string.room_fridge_desc, state.fridgeLevel),
                 income = "${state.fridgeLevel * 10} очков/2сек",
-                subtitle = "${stringResource(R.string.cost)}: $fridgeCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(fridgeCost)}",
                 canBuy = state.points >= fridgeCost,
                 onBuy = { viewModel.buyFridge() },
             )
@@ -85,7 +86,7 @@ fun RoomScreen(
                 title = stringResource(R.string.room_printer),
                 description = stringResource(R.string.room_printer_desc, state.printerLevel),
                 income = "${state.printerLevel * 15} очков/2сек",
-                subtitle = "${stringResource(R.string.cost)}: $printerCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(printerCost)}",
                 canBuy = state.points >= printerCost,
                 onBuy = { viewModel.buyPrinter() },
             )
@@ -95,7 +96,7 @@ fun RoomScreen(
                 title = stringResource(R.string.room_scanner),
                 description = stringResource(R.string.room_scanner_desc, state.scannerLevel),
                 income = "${state.scannerLevel * 20} очков/2сек",
-                subtitle = "${stringResource(R.string.cost)}: $scannerCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(scannerCost)}",
                 canBuy = state.points >= scannerCost,
                 onBuy = { viewModel.buyScanner() },
             )
@@ -105,7 +106,7 @@ fun RoomScreen(
                 title = stringResource(R.string.room_printer3d),
                 description = stringResource(R.string.room_printer3d_desc, state.printer3dLevel),
                 income = "${state.printer3dLevel * 50} очков/2сек",
-                subtitle = "${stringResource(R.string.cost)}: $printer3dCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(printer3dCost)}",
                 canBuy = state.points >= printer3dCost,
                 onBuy = { viewModel.buyPrinter3d() },
             )

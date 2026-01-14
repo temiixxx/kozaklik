@@ -33,5 +33,24 @@ data class GameStateEntity(
     val miningPower: Int = 0, // Мощность майнинга (крипта в секунду)
     val lastMiningTime: Long = 0L, // Время последнего майнинга
     val hasSoldCrypto: Boolean = false, // Флаг продажи крипты (для достижения)
+    
+    // Престиж система
+    val prestigeLevel: Int = 0, // Уровень престижа
+    val prestigePoints: Long = 0L, // Очки престижа (накоплены, но не потрачены)
+    
+    // Временные бусты
+    val boostMultiplier: Int = 1, // Текущий множитель буста (1 = нет буста, 2 = x2, и т.д.)
+    val boostEndTime: Long = 0L, // Время окончания буста (epoch ms)
+    
+    // Квесты
+    val activeQuestType: String = "", // Тип активного квеста ("", "taps", "points", "upgrades")
+    val activeQuestProgress: Long = 0L, // Прогресс активного квеста
+    val activeQuestTarget: Long = 0L, // Цель активного квеста
+    val activeQuestReward: Long = 0L, // Награда за квест
+    val lastQuestResetTime: Long = 0L, // Время последнего сброса квеста
+    
+    // События
+    val activeEventType: String = "", // Тип активного события ("", "double_day", "free_upgrades")
+    val activeEventEndTime: Long = 0L, // Время окончания события
 )
 

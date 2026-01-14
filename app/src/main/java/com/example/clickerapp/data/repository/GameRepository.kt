@@ -31,6 +31,25 @@ data class GameState(
     val miningPower: Int = 0,
     val lastMiningTime: Long = 0L,
     val hasSoldCrypto: Boolean = false,
+    
+    // Престиж система
+    val prestigeLevel: Int = 0,
+    val prestigePoints: Long = 0L,
+    
+    // Временные бусты
+    val boostMultiplier: Int = 1,
+    val boostEndTime: Long = 0L,
+    
+    // Квесты
+    val activeQuestType: String = "",
+    val activeQuestProgress: Long = 0L,
+    val activeQuestTarget: Long = 0L,
+    val activeQuestReward: Long = 0L,
+    val lastQuestResetTime: Long = 0L,
+    
+    // События
+    val activeEventType: String = "",
+    val activeEventEndTime: Long = 0L,
 )
 
 class GameRepository(
@@ -39,7 +58,23 @@ class GameRepository(
 ) {
     private val TAG = "GameRepository"
     val state: Flow<GameState> =
-        dao.observeState().map { it?.toDomain() ?: GameState(0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0L, 0, 0, 0, 0, 0, 0, 0L, 0, 0L, false) }
+        dao.observeState().map { entity ->
+            val domain = entity?.toDomain() ?: GameState(
+                points = 0, tapPower = 1, autoClickers = 0, autoPower = 1, totalTaps = 0,
+                pointsMultiplier = 1, autoClickerSpeed = 1, comboBonus = 0, offlineMultiplier = 1,
+                premiumUpgrade1 = 0, premiumUpgrade2 = 0, lastTapTime = 0L,
+                goatPenLevel = 0, goatFoodLevel = 0,
+                fridgeLevel = 0, printerLevel = 0, scannerLevel = 0, printer3dLevel = 0,
+                cryptoAmount = 0L, miningPower = 0, lastMiningTime = 0L, hasSoldCrypto = false,
+                prestigeLevel = 0, prestigePoints = 0L,
+                boostMultiplier = 1, boostEndTime = 0L,
+                activeQuestType = "", activeQuestProgress = 0L, activeQuestTarget = 0L,
+                activeQuestReward = 0L, lastQuestResetTime = 0L,
+                activeEventType = "", activeEventEndTime = 0L
+            )
+            Log.d(TAG, "State Flow updated - points=${domain.points}, tapPower=${domain.tapPower}, autoClickers=${domain.autoClickers}")
+            domain
+        }
 
     val achievements: Flow<Set<String>> =
         achievementDao.observeAll().map { list -> list.map { it.id }.toSet() }
@@ -48,7 +83,19 @@ class GameRepository(
         dao.getState() ?: GameStateEntity().also { dao.upsert(it) }
 
     suspend fun save(state: GameStateEntity) {
+        Log.d(TAG, "save: Saving state - points=${state.points}, id=${state.id}")
         dao.upsert(state)
+        Log.d(TAG, "save: State saved successfully")
+    }
+    
+    /**
+     * Атомарно обновляет состояние (например, при тапе).
+     * Гарантирует, что при быстрых тапах не будет потери очков из-за race condition.
+     */
+    suspend fun updateStateAtomically(
+        updateFn: (GameStateEntity) -> GameStateEntity
+    ) {
+        dao.updateStateAtomically(updateFn)
     }
 
     suspend fun unlockAchievement(id: String, unlockedAtEpochMs: Long) {
@@ -57,31 +104,31 @@ class GameRepository(
 
     /**
      * Начисляет offline-доход за прошедшее время.
-     * Кап по времени защищает от “миллионов” после долгого отсутствия.
+     * Кап по времени защищает от "миллионов" после долгого отсутствия.
      */
     suspend fun applyOfflineIncome(nowEpochMs: Long, capSeconds: Long = 8 * 60 * 60) {
-        val current = getOrCreate()
-        val lastSeen = current.lastSeenEpochMs
-        if (lastSeen <= 0L) {
-            save(current.copy(lastSeenEpochMs = nowEpochMs))
-            return
+        updateStateAtomically { current ->
+            val lastSeen = current.lastSeenEpochMs
+            if (lastSeen <= 0L) {
+                current.copy(lastSeenEpochMs = nowEpochMs)
+            } else {
+                val deltaSec = ((nowEpochMs - lastSeen) / 1_000).coerceAtLeast(0)
+                val effectiveSec = minOf(deltaSec, capSeconds)
+                val basePerSec = (current.autoClickers * current.autoPower).toLong()
+                val perSec = basePerSec * current.offlineMultiplier
+                val gain = effectiveSec * perSec
+                current.copy(
+                    points = current.points + gain,
+                    lastSeenEpochMs = nowEpochMs,
+                )
+            }
         }
-        val deltaSec = ((nowEpochMs - lastSeen) / 1_000).coerceAtLeast(0)
-        val effectiveSec = minOf(deltaSec, capSeconds)
-        val basePerSec = (current.autoClickers * current.autoPower).toLong()
-        val perSec = basePerSec * current.offlineMultiplier
-        val gain = effectiveSec * perSec
-        save(
-            current.copy(
-                points = current.points + gain,
-                lastSeenEpochMs = nowEpochMs,
-            )
-        )
     }
 
     suspend fun markSeen(nowEpochMs: Long) {
-        val current = getOrCreate()
-        save(current.copy(lastSeenEpochMs = nowEpochMs))
+        updateStateAtomically { current ->
+            current.copy(lastSeenEpochMs = nowEpochMs)
+        }
     }
     
     /**
@@ -177,5 +224,16 @@ private fun GameStateEntity.toDomain() = GameState(
     miningPower = miningPower,
     lastMiningTime = lastMiningTime,
     hasSoldCrypto = hasSoldCrypto,
+    prestigeLevel = prestigeLevel,
+    prestigePoints = prestigePoints,
+    boostMultiplier = boostMultiplier,
+    boostEndTime = boostEndTime,
+    activeQuestType = activeQuestType,
+    activeQuestProgress = activeQuestProgress,
+    activeQuestTarget = activeQuestTarget,
+    activeQuestReward = activeQuestReward,
+    lastQuestResetTime = lastQuestResetTime,
+    activeEventType = activeEventType,
+    activeEventEndTime = activeEventEndTime,
 )
 

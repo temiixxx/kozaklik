@@ -16,11 +16,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.Image
 import androidx.compose.ui.draw.clip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.clickerapp.R
+import com.example.clickerapp.util.NumberFormatter
 import com.example.clickerapp.viewmodel.GameViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -50,12 +54,20 @@ fun GameScreen(
     onOpenMining: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var showPrestigeDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Индикаторы бустов и событий
+        BoostAndEventIndicators(state = state)
+        
+        // Карточка активного квеста
+        if (state.activeQuestType.isNotEmpty()) {
+            QuestCard(state = state)
+        }
         Text(
             text = stringResource(R.string.game_title),
             style = MaterialTheme.typography.headlineMedium
@@ -76,7 +88,7 @@ fun GameScreen(
                         label = "points",
                     ) { points ->
                         Text(
-                            text = "${stringResource(R.string.game_points)}: $points",
+                            text = "${stringResource(R.string.game_points)}: ${NumberFormatter.format(points)}",
                             style = MaterialTheme.typography.titleLarge,
                         )
                     }
@@ -114,6 +126,13 @@ fun GameScreen(
                         Text(stringResource(R.string.mining_button))
                     }
                 }
+                
+                // Кнопка престижа
+                Spacer(Modifier.height(8.dp))
+                PrestigeButton(
+                    state = state,
+                    onClick = { showPrestigeDialog = true }
+                )
             }
         }
 
@@ -125,6 +144,18 @@ fun GameScreen(
             text = "Тапай козу, прокачивай силу тапа и покупай авто‑кликеры.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+        )
+    }
+    
+    // Диалог подтверждения престижа
+    if (showPrestigeDialog) {
+        PrestigeConfirmDialog(
+            state = state,
+            onConfirm = {
+                viewModel.performPrestige()
+                showPrestigeDialog = false
+            },
+            onDismiss = { showPrestigeDialog = false }
         )
     }
 }
@@ -185,3 +216,178 @@ private fun GoatTapCard(
     }
 }
 
+@Composable
+private fun BoostAndEventIndicators(state: com.example.clickerapp.data.repository.GameState) {
+    val now = System.currentTimeMillis()
+    val hasActiveBoost = now < state.boostEndTime && state.boostMultiplier > 1
+    val hasActiveEvent = now < state.activeEventEndTime && state.activeEventType.isNotEmpty()
+    
+    if (hasActiveBoost || hasActiveEvent) {
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                if (hasActiveBoost) {
+                    val timeLeft = ((state.boostEndTime - now) / 1000).toInt()
+                    val minutes = timeLeft / 60
+                    val seconds = timeLeft % 60
+                    Text(
+                        text = stringResource(R.string.boost_active, state.boostMultiplier),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = stringResource(R.string.boost_time_left, String.format("%d:%02d", minutes, seconds)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+                if (hasActiveEvent) {
+                    if (hasActiveBoost) Spacer(Modifier.height(8.dp))
+                    val eventName = when (state.activeEventType) {
+                        "double_day" -> stringResource(R.string.event_double_day)
+                        "free_upgrades" -> stringResource(R.string.event_free_upgrades)
+                        else -> state.activeEventType
+                    }
+                    val eventTimeLeft = ((state.activeEventEndTime - now) / 1000).toInt()
+                    val eventMinutes = eventTimeLeft / 60
+                    val eventSeconds = eventTimeLeft % 60
+                    Text(
+                        text = stringResource(R.string.event_active, eventName),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = stringResource(R.string.boost_time_left, String.format("%d:%02d", eventMinutes, eventSeconds)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuestCard(state: com.example.clickerapp.data.repository.GameState) {
+    if (state.activeQuestType.isEmpty() || state.activeQuestTarget <= 0) return
+    
+    val progress = state.activeQuestProgress.toFloat() / state.activeQuestTarget.toFloat()
+    val questDescription = when (state.activeQuestType) {
+        "taps" -> stringResource(R.string.quest_taps, NumberFormatter.format(state.activeQuestTarget))
+        "points" -> stringResource(R.string.quest_points, NumberFormatter.format(state.activeQuestTarget))
+        "upgrades" -> stringResource(R.string.quest_upgrades, NumberFormatter.format(state.activeQuestTarget))
+        else -> ""
+    }
+    
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.quest_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = questDescription,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = progress.coerceIn(0f, 1f),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(
+                    R.string.quest_progress,
+                    NumberFormatter.format(state.activeQuestProgress),
+                    NumberFormatter.format(state.activeQuestTarget)
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.quest_reward, NumberFormatter.format(state.activeQuestReward)),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrestigeButton(
+    state: com.example.clickerapp.data.repository.GameState,
+    onClick: () -> Unit
+) {
+    val canPrestige = state.points >= 1_000_000L
+    val prestigeEarned = if (canPrestige) state.points / 1_000_000L else 0L
+    
+    Button(
+        onClick = onClick,
+        enabled = canPrestige,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = stringResource(R.string.prestige_button),
+                style = MaterialTheme.typography.titleMedium
+            )
+            if (canPrestige) {
+                Text(
+                    text = stringResource(R.string.prestige_earn, NumberFormatter.format(prestigeEarned)),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.prestige_insufficient),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrestigeConfirmDialog(
+    state: com.example.clickerapp.data.repository.GameState,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val prestigeEarned = state.points / 1_000_000L
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(stringResource(R.string.prestige_confirm_title))
+        },
+        text = {
+            Text(stringResource(R.string.prestige_confirm_message, NumberFormatter.format(prestigeEarned)))
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text(stringResource(R.string.prestige_confirm_yes))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.prestige_confirm_no))
+            }
+        }
+    )
+}

@@ -20,7 +20,23 @@ class GameViewModel(
     private val TAG = "GameViewModel"
 
     val state: StateFlow<GameState> =
-        repository.state.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GameState(0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0L, 0, 0, 0, 0, 0, 0, 0L, 0, 0L))
+        repository.state.stateIn(
+            viewModelScope, 
+            SharingStarted.WhileSubscribed(5_000), 
+            GameState(
+                points = 0, tapPower = 1, autoClickers = 0, autoPower = 1, totalTaps = 0,
+                pointsMultiplier = 1, autoClickerSpeed = 1, comboBonus = 0, offlineMultiplier = 1,
+                premiumUpgrade1 = 0, premiumUpgrade2 = 0, lastTapTime = 0L,
+                goatPenLevel = 0, goatFoodLevel = 0,
+                fridgeLevel = 0, printerLevel = 0, scannerLevel = 0, printer3dLevel = 0,
+                cryptoAmount = 0L, miningPower = 0, lastMiningTime = 0L, hasSoldCrypto = false,
+                prestigeLevel = 0, prestigePoints = 0L,
+                boostMultiplier = 1, boostEndTime = 0L,
+                activeQuestType = "", activeQuestProgress = 0L, activeQuestTarget = 0L,
+                activeQuestReward = 0L, lastQuestResetTime = 0L,
+                activeEventType = "", activeEventEndTime = 0L
+            )
+        )
 
     val achievements: StateFlow<Set<String>> =
         repository.achievements.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
@@ -29,12 +45,25 @@ class GameViewModel(
     private var miningJob: Job? = null
     private var roomJob: Job? = null
 
-    init {
+        init {
+            viewModelScope.launch {
+                repository.getOrCreate()
+            }
+            viewModelScope.launch {
+                repository.applyOfflineIncome(nowEpochMs = System.currentTimeMillis())
+            }
+            // Автоматически генерируем квест, если его нет
+            viewModelScope.launch {
+                val currentState = repository.getOrCreate()
+                if (currentState.activeQuestType.isEmpty()) {
+                    generateNewQuest()
+                }
+            }
+        // Логирование обновлений состояния для отладки
         viewModelScope.launch {
-            repository.getOrCreate()
-        }
-        viewModelScope.launch {
-            repository.applyOfflineIncome(nowEpochMs = System.currentTimeMillis())
+            state.collect { gameState ->
+                Log.d(TAG, "StateFlow updated - points=${gameState.points}, tapPower=${gameState.tapPower}, autoClickers=${gameState.autoClickers}, miningPower=${gameState.miningPower}")
+            }
         }
         // Unlock achievements reactively (writes go to another table, so no infinite loop).
         viewModelScope.launch {
@@ -57,32 +86,94 @@ class GameViewModel(
 
     fun tapGoat() {
         viewModelScope.launch {
-            val current = repository.getOrCreate()
-            val now = System.currentTimeMillis()
-            val timeSinceLastTap = now - current.lastTapTime
-            val comboMultiplier = if (timeSinceLastTap < 2000 && current.lastTapTime > 0) {
-                // Комбо: если тапнули в течение 2 секунд после предыдущего тапа
-                (current.comboBonus + 1).coerceAtMost(10) // Максимум x10 комбо
-            } else {
-                1
+            repository.updateStateAtomically { current ->
+                val now = System.currentTimeMillis()
+                
+                // Проверяем и обновляем активные бусты/события
+                val activeBoostMultiplier = if (now < current.boostEndTime) current.boostMultiplier else 1
+                val updatedBoost = if (now >= current.boostEndTime && current.boostMultiplier > 1) {
+                    current.copy(boostMultiplier = 1, boostEndTime = 0L)
+                } else {
+                    current
+                }
+                val updatedEvents = if (now >= current.activeEventEndTime && current.activeEventType.isNotEmpty()) {
+                    updatedBoost.copy(activeEventType = "", activeEventEndTime = 0L)
+                } else {
+                    updatedBoost
+                }
+                
+                // Вычисляем доход
+                val timeSinceLastTap = now - updatedEvents.lastTapTime
+                val comboMultiplier = if (timeSinceLastTap < 2000 && updatedEvents.lastTapTime > 0) {
+                    (updatedEvents.comboBonus + 1).coerceAtMost(10)
+                } else {
+                    1
+                }
+                
+                val penBonus = 1.0 + (updatedEvents.goatPenLevel * 0.2)
+                val foodMultiplier = 1.0 + (updatedEvents.goatFoodLevel * 0.15)
+                
+                val baseGain = (updatedEvents.tapPower * penBonus).toLong()
+                val multiplierGain = baseGain * updatedEvents.pointsMultiplier
+                val foodGain = (multiplierGain * foodMultiplier).toLong()
+                val comboGain = foodGain * comboMultiplier
+                val boostGain = comboGain * activeBoostMultiplier
+                
+                // Применяем бонус события "Двойной день"
+                val eventMultiplier = if (updatedEvents.activeEventType == "double_day" && now < updatedEvents.activeEventEndTime) {
+                    2
+                } else {
+                    1
+                }
+                val finalGain = boostGain * eventMultiplier
+                
+                // Обновляем прогресс квеста "taps"
+                val afterTapsQuest = if (updatedEvents.activeQuestType == "taps") {
+                    val newProgress = updatedEvents.activeQuestProgress + 1
+                    if (newProgress >= updatedEvents.activeQuestTarget) {
+                        updatedEvents.copy(
+                            activeQuestType = "",
+                            activeQuestProgress = 0L,
+                            activeQuestTarget = 0L,
+                            activeQuestReward = 0L,
+                            points = updatedEvents.points + finalGain + updatedEvents.activeQuestReward
+                        )
+                    } else {
+                        updatedEvents.copy(
+                            activeQuestProgress = newProgress,
+                            points = updatedEvents.points + finalGain
+                        )
+                    }
+                } else {
+                    updatedEvents.copy(points = updatedEvents.points + finalGain)
+                }
+                
+                // Обновляем прогресс квеста "points" (если есть)
+                val afterPointsQuest = if (afterTapsQuest.activeQuestType == "points") {
+                    val newProgress = afterTapsQuest.activeQuestProgress + finalGain
+                    if (newProgress >= afterTapsQuest.activeQuestTarget) {
+                        afterTapsQuest.copy(
+                            activeQuestType = "",
+                            activeQuestProgress = 0L,
+                            activeQuestTarget = 0L,
+                            activeQuestReward = 0L,
+                            points = afterTapsQuest.points + afterTapsQuest.activeQuestReward
+                        )
+                    } else {
+                        afterTapsQuest.copy(activeQuestProgress = newProgress)
+                    }
+                } else {
+                    afterTapsQuest
+                }
+                
+                val updatedQuest = afterPointsQuest
+                
+                updatedQuest.copy(
+                    totalTaps = updatedQuest.totalTaps + 1,
+                    lastTapTime = now,
+                    boostMultiplier = activeBoostMultiplier,
+                )
             }
-            
-            // Улучшения козы: загон даёт базовый бонус, еда - множитель
-            val penBonus = 1.0 + (current.goatPenLevel * 0.2) // +20% за уровень загона
-            val foodMultiplier = 1.0 + (current.goatFoodLevel * 0.15) // +15% за уровень еды
-            
-            val baseGain = (current.tapPower * penBonus).toLong()
-            val multiplierGain = baseGain * current.pointsMultiplier
-            val foodGain = (multiplierGain * foodMultiplier).toLong()
-            val comboGain = foodGain * comboMultiplier
-            val finalGain = comboGain
-            
-            val next = current.copy(
-                points = current.points + finalGain,
-                totalTaps = current.totalTaps + 1,
-                lastTapTime = now,
-            )
-            repository.save(next)
         }
     }
 
@@ -91,10 +182,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> tapUpgradeCost(state.tapPower) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         tapPower = state.tapPower + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -104,16 +196,43 @@ class GameViewModel(
             }
         }
     }
+    
+    /**
+     * Обновляет прогресс квеста и возвращает обновленное состояние
+     */
+    private fun updateQuestProgress(
+        state: GameStateEntity,
+        questType: String,
+        progressDelta: Long
+    ): GameStateEntity {
+        if (state.activeQuestType != questType || state.activeQuestTarget <= 0) {
+            return state
+        }
+        val newProgress = state.activeQuestProgress + progressDelta
+        return if (newProgress >= state.activeQuestTarget) {
+            // Квест выполнен
+            state.copy(
+                activeQuestType = "",
+                activeQuestProgress = 0L,
+                activeQuestTarget = 0L,
+                activeQuestReward = 0L,
+                points = state.points + state.activeQuestReward
+            )
+        } else {
+            state.copy(activeQuestProgress = newProgress)
+        }
+    }
 
     fun buyAutoClicker() {
         viewModelScope.launch {
             val success = repository.buyWithCheck(
                 costFn = { state -> autoClickerCost(state.autoClickers) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         autoClickers = state.autoClickers + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -130,10 +249,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> autoPowerCost(state.autoPower) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         autoPower = state.autoPower + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -149,10 +269,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> pointsMultiplierCost(state.pointsMultiplier) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         pointsMultiplier = state.pointsMultiplier + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -168,10 +289,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> autoClickerSpeedCost(state.autoClickerSpeed) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         autoClickerSpeed = state.autoClickerSpeed + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -188,10 +310,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> comboBonusCost(state.comboBonus) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         comboBonus = state.comboBonus + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -207,10 +330,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> offlineMultiplierCost(state.offlineMultiplier) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         offlineMultiplier = state.offlineMultiplier + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -226,10 +350,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> premiumUpgradeCost(state.premiumUpgrade1) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         premiumUpgrade1 = state.premiumUpgrade1 + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -245,10 +370,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> premiumUpgradeCost(state.premiumUpgrade2) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         premiumUpgrade2 = state.premiumUpgrade2 + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -265,10 +391,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> goatPenCost(state.goatPenLevel) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         goatPenLevel = state.goatPenLevel + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -284,10 +411,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> goatFoodCost(state.goatFoodLevel) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         goatFoodLevel = state.goatFoodLevel + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -304,10 +432,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> fridgeCost(state.fridgeLevel) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         fridgeLevel = state.fridgeLevel + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -323,10 +452,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> printerCost(state.printerLevel) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         printerLevel = state.printerLevel + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -342,10 +472,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> scannerCost(state.scannerLevel) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         scannerLevel = state.scannerLevel + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -361,10 +492,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> printer3dCost(state.printer3dLevel) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         printer3dLevel = state.printer3dLevel + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -381,10 +513,11 @@ class GameViewModel(
             val success = repository.buyWithCheck(
                 costFn = { state -> miningPowerCost(state.miningPower) },
                 updateFn = { state, cost ->
-                    state.copy(
+                    val updated = state.copy(
                         points = state.points - cost,
                         miningPower = state.miningPower + 1,
                     )
+                    updateQuestProgress(updated, "upgrades", 1L)
                 }
             )
             if (success) {
@@ -397,16 +530,139 @@ class GameViewModel(
 
     fun sellCrypto() {
         viewModelScope.launch {
-            val current = repository.getOrCreate()
-            if (current.cryptoAmount <= 0) return@launch
-            // Продаём крипту по курсу: 1 крипта = 100 очков
-            val pointsGain = current.cryptoAmount * 100L
-            val next = current.copy(
-                points = current.points + pointsGain,
-                cryptoAmount = 0L,
-                hasSoldCrypto = true,
-            )
-            repository.save(next)
+            repository.updateStateAtomically { current ->
+                if (current.cryptoAmount <= 0) {
+                    current // Возвращаем без изменений
+                } else {
+                    val now = System.currentTimeMillis()
+                    val eventMultiplier = if (current.activeEventType == "double_day" && now < current.activeEventEndTime) 2 else 1
+                    val pointsGain = current.cryptoAmount * 100L * eventMultiplier
+                    current.copy(
+                        points = current.points + pointsGain,
+                        cryptoAmount = 0L,
+                        hasSoldCrypto = true,
+                    )
+                }
+            }
+        }
+    }
+    
+    // Система бустов
+    fun activateBoost(multiplier: Int, durationMinutes: Int) {
+        viewModelScope.launch {
+            repository.updateStateAtomically { current ->
+                val now = System.currentTimeMillis()
+                val endTime = now + (durationMinutes * 60 * 1000L)
+                current.copy(
+                    boostMultiplier = multiplier,
+                    boostEndTime = endTime
+                )
+            }
+        }
+    }
+    
+    // Система престижа
+    fun performPrestige() {
+        viewModelScope.launch {
+            repository.updateStateAtomically { current ->
+                if (current.points < 1_000_000L) {
+                    return@updateStateAtomically current // Нужно минимум 1M для престижа
+                }
+                // Вычисляем очки престижа: 1 престиж за каждые 1M очков
+                val prestigeEarned = current.points / 1_000_000L
+                val newPrestigePoints = current.prestigePoints + prestigeEarned
+                
+                // Сбрасываем прогресс, но сохраняем престиж
+                GameStateEntity(
+                    id = 0,
+                    points = 0L,
+                    tapPower = 1,
+                    autoClickers = 0,
+                    autoPower = 1,
+                    totalTaps = 0L,
+                    lastSeenEpochMs = current.lastSeenEpochMs,
+                    pointsMultiplier = 1,
+                    autoClickerSpeed = 1,
+                    comboBonus = 0,
+                    offlineMultiplier = 1,
+                    premiumUpgrade1 = 0,
+                    premiumUpgrade2 = 0,
+                    lastTapTime = 0L,
+                    goatPenLevel = 0,
+                    goatFoodLevel = 0,
+                    fridgeLevel = 0,
+                    printerLevel = 0,
+                    scannerLevel = 0,
+                    printer3dLevel = 0,
+                    cryptoAmount = 0L,
+                    miningPower = 0,
+                    lastMiningTime = 0L,
+                    hasSoldCrypto = false,
+                    prestigeLevel = current.prestigeLevel + 1,
+                    prestigePoints = newPrestigePoints,
+                    boostMultiplier = 1,
+                    boostEndTime = 0L,
+                    activeQuestType = current.activeQuestType,
+                    activeQuestProgress = current.activeQuestProgress,
+                    activeQuestTarget = current.activeQuestTarget,
+                    activeQuestReward = current.activeQuestReward,
+                    lastQuestResetTime = current.lastQuestResetTime,
+                    activeEventType = current.activeEventType,
+                    activeEventEndTime = current.activeEventEndTime,
+                )
+            }
+        }
+    }
+    
+    // Использовать очки престижа для постоянного бонуса
+    fun spendPrestigePoints(amount: Long): Boolean {
+        viewModelScope.launch {
+            repository.updateStateAtomically { current ->
+                if (current.prestigePoints < amount) {
+                    current
+                } else {
+                    // Можно потратить на постоянные бонусы (например, начать с большим tapPower)
+                    current.copy(prestigePoints = current.prestigePoints - amount)
+                }
+            }
+        }
+        return false
+    }
+    
+    // Система квестов
+    fun generateNewQuest() {
+        viewModelScope.launch {
+            repository.updateStateAtomically { current ->
+                val questTypes = listOf("taps", "points", "upgrades")
+                val selectedType = questTypes.random()
+                val (target, reward) = when (selectedType) {
+                    "taps" -> 100L to 1000L
+                    "points" -> 10000L to 5000L
+                    "upgrades" -> 5L to 2000L
+                    else -> 0L to 0L
+                }
+                current.copy(
+                    activeQuestType = selectedType,
+                    activeQuestProgress = 0L,
+                    activeQuestTarget = target,
+                    activeQuestReward = reward,
+                    lastQuestResetTime = System.currentTimeMillis()
+                )
+            }
+        }
+    }
+    
+    // Система событий
+    fun startEvent(eventType: String, durationMinutes: Int) {
+        viewModelScope.launch {
+            repository.updateStateAtomically { current ->
+                val now = System.currentTimeMillis()
+                val endTime = now + (durationMinutes * 60 * 1000L)
+                current.copy(
+                    activeEventType = eventType,
+                    activeEventEndTime = endTime
+                )
+            }
         }
     }
 
@@ -414,13 +670,24 @@ class GameViewModel(
         if (autoJob?.isActive == true) return
         autoJob = viewModelScope.launch {
             while (true) {
-                val current = repository.getOrCreate()
-                val delayMs = 1000L / current.autoClickerSpeed.coerceAtLeast(1)
+                var delayMs = 1000L
+                repository.updateStateAtomically { current ->
+                    val now = System.currentTimeMillis()
+                    val activeBoost = if (now < current.boostEndTime) current.boostMultiplier else 1
+                    val eventMultiplier = if (current.activeEventType == "double_day" && now < current.activeEventEndTime) 2 else 1
+                    
+                    delayMs = 1000L / current.autoClickerSpeed.coerceAtLeast(1)
+                    val baseGain = (current.autoClickers * current.autoPower).toLong()
+                    val multiplierGain = baseGain * current.pointsMultiplier
+                    val boostGain = multiplierGain * activeBoost * eventMultiplier
+                    
+                    if (boostGain <= 0L) {
+                        current
+                    } else {
+                        current.copy(points = current.points + boostGain, boostMultiplier = activeBoost)
+                    }
+                }
                 delay(delayMs)
-                val baseGain = (current.autoClickers * current.autoPower).toLong()
-                val multiplierGain = baseGain * current.pointsMultiplier
-                if (multiplierGain <= 0L) continue
-                repository.save(current.copy(points = current.points + multiplierGain))
             }
         }
     }
@@ -430,15 +697,23 @@ class GameViewModel(
         roomJob = viewModelScope.launch {
             while (true) {
                 delay(2000) // Оборудование коморки работает раз в 2 секунды
-                val current = repository.getOrCreate()
-                val roomIncome = (
-                    current.fridgeLevel * 10L +
-                    current.printerLevel * 15L +
-                    current.scannerLevel * 20L +
-                    current.printer3dLevel * 50L
-                )
-                if (roomIncome > 0) {
-                    repository.save(current.copy(points = current.points + roomIncome))
+                repository.updateStateAtomically { current ->
+                    val now = System.currentTimeMillis()
+                    val activeBoost = if (now < current.boostEndTime) current.boostMultiplier else 1
+                    val eventMultiplier = if (current.activeEventType == "double_day" && now < current.activeEventEndTime) 2 else 1
+                    
+                    val roomIncome = (
+                        current.fridgeLevel * 10L +
+                        current.printerLevel * 15L +
+                        current.scannerLevel * 20L +
+                        current.printer3dLevel * 50L
+                    ) * activeBoost * eventMultiplier
+                    
+                    if (roomIncome > 0) {
+                        current.copy(points = current.points + roomIncome, boostMultiplier = activeBoost)
+                    } else {
+                        current
+                    }
                 }
             }
         }
@@ -449,14 +724,17 @@ class GameViewModel(
         miningJob = viewModelScope.launch {
             while (true) {
                 delay(1000)
-                val current = repository.getOrCreate()
-                if (current.miningPower > 0) {
-                    val now = System.currentTimeMillis()
-                    val cryptoGain = current.miningPower.toLong()
-                    repository.save(current.copy(
-                        cryptoAmount = current.cryptoAmount + cryptoGain,
-                        lastMiningTime = now,
-                    ))
+                repository.updateStateAtomically { current ->
+                    if (current.miningPower > 0) {
+                        val now = System.currentTimeMillis()
+                        val cryptoGain = current.miningPower.toLong()
+                        current.copy(
+                            cryptoAmount = current.cryptoAmount + cryptoGain,
+                            lastMiningTime = now,
+                        )
+                    } else {
+                        current // Возвращаем без изменений
+                    }
                 }
             }
         }
@@ -667,57 +945,71 @@ object AchievementIds {
     const val Collector = "collector" // Все виды улучшений куплены хотя бы раз
 }
 
+/**
+ * Формула стоимости с экспоненциальным ростом после уровня 25.
+ * До 25 уровня - линейный рост, после - экспоненциальный.
+ */
+private fun costFormula(baseCost: Long, linearGrowth: Long, level: Int, exponentialThreshold: Int = 25): Long {
+    return if (level < exponentialThreshold) {
+        baseCost + linearGrowth * level.toLong()
+    } else {
+        val linearPart = baseCost + linearGrowth * exponentialThreshold.toLong()
+        val exponentialLevel = level - exponentialThreshold
+        val multiplier = 1.15.pow(exponentialLevel) // 15% рост за уровень
+        (linearPart * multiplier).toLong()
+    }
+}
+
+private fun Double.pow(exp: Int): Double {
+    var result = 1.0
+    repeat(exp) { result *= this }
+    return result
+}
+
 fun tapUpgradeCost(currentTapPower: Int): Long =
-    (30L * currentTapPower.toLong() * currentTapPower.toLong()).coerceAtLeast(30L)
+    costFormula(10L, 5L, currentTapPower, 25)
 
 fun autoClickerCost(currentAutoClickers: Int): Long {
-    val n = (currentAutoClickers + 1L)
-    return 150L * n * n
+    return costFormula(50L, 25L, currentAutoClickers, 25)
 }
 
 fun autoPowerCost(currentAutoPower: Int): Long =
-    (500L * currentAutoPower.toLong() * currentAutoPower.toLong()).coerceAtLeast(500L)
+    costFormula(20L, 10L, currentAutoPower, 25)
 
 fun pointsMultiplierCost(currentLevel: Int): Long {
-    // Множитель очков: x2, x3, x5, x10... Стоимость растёт экспоненциально
-    val multiplier = when (currentLevel) {
-        0 -> 2
-        1 -> 3
-        2 -> 5
-        else -> 10
-    }
-    return (1000L * multiplier * (currentLevel + 1) * (currentLevel + 1))
+    // Множитель очков: x2, x3, x5, x10... Стоимость растёт экспоненциально после 20
+    return costFormula(200L, 150L, currentLevel, 20)
 }
 
 fun autoClickerSpeedCost(currentSpeed: Int): Long {
     // Ускорение авто-кликеров: каждое улучшение удваивает скорость
-    return (2000L * (currentSpeed + 1) * (currentSpeed + 1) * (currentSpeed + 1))
+    return costFormula(300L, 200L, currentSpeed, 20)
 }
 
 fun comboBonusCost(currentBonus: Int): Long {
     // Бонус за комбо: увеличивает максимальный множитель комбо
-    return (1500L * (currentBonus + 1) * (currentBonus + 1))
+    return costFormula(250L, 150L, currentBonus, 20)
 }
 
 fun offlineMultiplierCost(currentMultiplier: Int): Long {
     // Множитель офлайн-дохода: удваивает доход за время вне игры
-    return (3000L * (currentMultiplier + 1) * (currentMultiplier + 1) * (currentMultiplier + 1))
+    return costFormula(400L, 250L, currentMultiplier, 20)
 }
 
 fun premiumUpgradeCost(currentLevel: Int): Long {
     // Премиум улучшения: очень дорогие, но мощные (увеличивают все параметры)
-    return (10000L * (currentLevel + 1) * (currentLevel + 1) * (currentLevel + 1) * (currentLevel + 1))
+    return costFormula(1000L, 500L, currentLevel, 15)
 }
 
 // Улучшения для козы
-fun goatPenCost(level: Int): Long = (500L * (level + 1) * (level + 1))
-fun goatFoodCost(level: Int): Long = (800L * (level + 1) * (level + 1))
+fun goatPenCost(level: Int): Long = costFormula(100L, 50L, level, 30)
+fun goatFoodCost(level: Int): Long = costFormula(150L, 75L, level, 30)
 
 // Оборудование коморки
-fun fridgeCost(level: Int): Long = (2000L * (level + 1) * (level + 1))
-fun printerCost(level: Int): Long = (3000L * (level + 1) * (level + 1))
-fun scannerCost(level: Int): Long = (4000L * (level + 1) * (level + 1))
-fun printer3dCost(level: Int): Long = (10000L * (level + 1) * (level + 1))
+fun fridgeCost(level: Int): Long = costFormula(300L, 150L, level, 25)
+fun printerCost(level: Int): Long = costFormula(400L, 200L, level, 25)
+fun scannerCost(level: Int): Long = costFormula(500L, 250L, level, 25)
+fun printer3dCost(level: Int): Long = costFormula(800L, 400L, level, 20)
 
 // Майнинг
-fun miningPowerCost(power: Int): Long = (5000L * (power + 1) * (power + 1) * (power + 1))
+fun miningPowerCost(power: Int): Long = costFormula(600L, 300L, power, 25)

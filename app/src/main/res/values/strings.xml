@@ -77,5 +77,33 @@
     <string name="mining_power">Мощность майнинга</string>
     <string name="mining_description">Майни криптовалюту и продавай за очки!</string>
     <string name="mining_upgrade">Улучшить майнинг</string>
+    
+    <!-- Престиж -->
+    <string name="prestige_title">Престиж</string>
+    <string name="prestige_button">Престиж</string>
+    <string name="prestige_level">Уровень престижа: %1$d</string>
+    <string name="prestige_points">Очки престижа: %1$s</string>
+    <string name="prestige_earn">Заработать: %1$s очков престижа</string>
+    <string name="prestige_confirm_title">Подтверждение престижа</string>
+    <string name="prestige_confirm_message">Вы получите %1$s очков престижа, но весь прогресс будет сброшен. Продолжить?</string>
+    <string name="prestige_confirm_yes">Да, престиж!</string>
+    <string name="prestige_confirm_no">Отмена</string>
+    <string name="prestige_insufficient">Нужно минимум 1M очков для престижа</string>
+    
+    <!-- Квесты -->
+    <string name="quest_title">Активный квест</string>
+    <string name="quest_taps">Выполнить %1$s тапов</string>
+    <string name="quest_points">Заработать %1$s очков</string>
+    <string name="quest_upgrades">Купить %1$s улучшений</string>
+    <string name="quest_reward">Награда: %1$s очков</string>
+    <string name="quest_completed">Квест выполнен!</string>
+    <string name="quest_progress">Прогресс: %1$s / %2$s</string>
+    
+    <!-- Бусты и события -->
+    <string name="boost_active">Буст активен: x%1$d</string>
+    <string name="boost_time_left">Осталось: %1$s</string>
+    <string name="event_active">Событие: %1$s</string>
+    <string name="event_double_day">Двойной день</string>
+    <string name="event_free_upgrades">Бесплатные улучшения</string>
 </resources>
 

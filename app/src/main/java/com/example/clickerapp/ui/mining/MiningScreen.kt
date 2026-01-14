@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.clickerapp.R
+import com.example.clickerapp.util.NumberFormatter
 import com.example.clickerapp.viewmodel.GameViewModel
 import com.example.clickerapp.viewmodel.miningPowerCost
 
@@ -69,7 +70,7 @@ fun MiningScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "${state.cryptoAmount} ₿",
+                        text = "${NumberFormatter.format(state.cryptoAmount)} ₿",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -84,7 +85,7 @@ fun MiningScreen(
                         enabled = state.cryptoAmount > 0,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Продать за ${state.cryptoAmount * 100} очков")
+                        Text("Продать за ${NumberFormatter.format(state.cryptoAmount * 100)} очков")
                     }
                 }
             }
@@ -125,7 +126,7 @@ fun MiningScreen(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "${stringResource(R.string.cost)}: $miningCost",
+                        text = "${stringResource(R.string.cost)}: ${NumberFormatter.format(miningCost)}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(Modifier.height(12.dp))

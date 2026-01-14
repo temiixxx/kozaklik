@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.clickerapp.R
+import com.example.clickerapp.util.NumberFormatter
 import com.example.clickerapp.viewmodel.GameViewModel
 import com.example.clickerapp.viewmodel.AchievementIds
 
@@ -167,8 +168,8 @@ private fun StatsTab(
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Статистика игрока", style = MaterialTheme.typography.titleLarge)
-            Text("Очки: $points")
-            Text("Всего тапов: $totalTaps")
+            Text("Очки: ${NumberFormatter.format(points)}")
+            Text("Всего тапов: ${NumberFormatter.format(totalTaps)}")
             Text("Сила тапа: $tapPower")
             Text("Авто‑кликеры: $autoClickers")
         }

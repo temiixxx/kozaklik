@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [GameStateEntity::class, AchievementEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class GameDatabase : RoomDatabase() {
@@ -26,7 +26,7 @@ abstract class GameDatabase : RoomDatabase() {
                     GameDatabase::class.java,
                     "game_database.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 Log.d(TAG, "Database created successfully")
                 db
@@ -70,6 +70,24 @@ abstract class GameDatabase : RoomDatabase() {
 
         private val MIGRATION_4_5 = androidx.room.migration.Migration(4, 5) { db ->
             db.execSQL("ALTER TABLE game_state ADD COLUMN hasSoldCrypto INTEGER NOT NULL DEFAULT 0")
+        }
+
+        private val MIGRATION_5_6 = androidx.room.migration.Migration(5, 6) { db ->
+            // Престиж система
+            db.execSQL("ALTER TABLE game_state ADD COLUMN prestigeLevel INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE game_state ADD COLUMN prestigePoints INTEGER NOT NULL DEFAULT 0")
+            // Временные бусты
+            db.execSQL("ALTER TABLE game_state ADD COLUMN boostMultiplier INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("ALTER TABLE game_state ADD COLUMN boostEndTime INTEGER NOT NULL DEFAULT 0")
+            // Квесты
+            db.execSQL("ALTER TABLE game_state ADD COLUMN activeQuestType TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE game_state ADD COLUMN activeQuestProgress INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE game_state ADD COLUMN activeQuestTarget INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE game_state ADD COLUMN activeQuestReward INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE game_state ADD COLUMN lastQuestResetTime INTEGER NOT NULL DEFAULT 0")
+            // События
+            db.execSQL("ALTER TABLE game_state ADD COLUMN activeEventType TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE game_state ADD COLUMN activeEventEndTime INTEGER NOT NULL DEFAULT 0")
         }
     }
 }

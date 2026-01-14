@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.clickerapp.R
+import com.example.clickerapp.util.NumberFormatter
 import com.example.clickerapp.viewmodel.GameViewModel
 import com.example.clickerapp.viewmodel.autoClickerCost
 import com.example.clickerapp.viewmodel.autoClickerSpeedCost
@@ -79,25 +80,28 @@ fun UpgradesScreen(
         ) {
             // Базовые улучшения
             CategoryHeader(stringResource(R.string.upgrade_category_basic))
+            val tapCost = tapUpgradeCost(state.tapPower)
             UpgradeCard(
                 title = stringResource(R.string.upgrade_tap_power),
                 description = stringResource(R.string.upgrade_level, state.tapPower),
-                subtitle = "${stringResource(R.string.cost)}: $tapCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(tapCost)}",
                 canBuy = state.points >= tapCost,
                 onBuy = { viewModel.buyTapUpgrade() },
             )
+            val autoCost = autoClickerCost(state.autoClickers)
             UpgradeCard(
                 title = stringResource(R.string.upgrade_auto_clicker),
                 description = "${stringResource(R.string.upgrade_level, state.autoClickers)}",
-                subtitle = "${stringResource(R.string.cost)}: $autoCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(autoCost)}",
                 canBuy = state.points >= autoCost,
                 onBuy = { viewModel.buyAutoClicker() },
             )
+            val autoPowerCostVal = autoPowerCost(state.autoPower)
             UpgradeCard(
                 title = stringResource(R.string.upgrade_auto_power),
                 description = stringResource(R.string.upgrade_level, state.autoPower),
-                subtitle = "${stringResource(R.string.cost)}: $autoPowerCost",
-                canBuy = state.points >= autoPowerCost,
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(autoPowerCostVal)}",
+                canBuy = state.points >= autoPowerCostVal,
                 onBuy = { viewModel.buyAutoPower() },
             )
 
@@ -110,7 +114,7 @@ fun UpgradesScreen(
             UpgradeCard(
                 title = stringResource(R.string.upgrade_goat_pen),
                 description = stringResource(R.string.upgrade_goat_pen_desc, state.goatPenLevel + 1),
-                subtitle = "${stringResource(R.string.cost)}: $penCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(penCost)}",
                 canBuy = state.points >= penCost,
                 onBuy = { viewModel.buyGoatPen() },
             )
@@ -119,7 +123,7 @@ fun UpgradesScreen(
             UpgradeCard(
                 title = stringResource(R.string.upgrade_goat_food),
                 description = stringResource(R.string.upgrade_goat_food_desc, state.goatFoodLevel + 1),
-                subtitle = "${stringResource(R.string.cost)}: $foodCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(foodCost)}",
                 canBuy = state.points >= foodCost,
                 onBuy = { viewModel.buyGoatFood() },
             )
@@ -139,7 +143,7 @@ fun UpgradesScreen(
             UpgradeCard(
                 title = stringResource(R.string.upgrade_points_multiplier),
                 description = stringResource(R.string.upgrade_points_multiplier_desc, pointsMultValue),
-                subtitle = "${stringResource(R.string.cost)}: $pointsMultCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(pointsMultCost)}",
                 canBuy = state.points >= pointsMultCost,
                 onBuy = { viewModel.buyPointsMultiplier() },
             )
@@ -148,7 +152,7 @@ fun UpgradesScreen(
             UpgradeCard(
                 title = stringResource(R.string.upgrade_auto_speed),
                 description = stringResource(R.string.upgrade_auto_speed_desc, state.autoClickerSpeed),
-                subtitle = "${stringResource(R.string.cost)}: $autoSpeedCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(autoSpeedCost)}",
                 canBuy = state.points >= autoSpeedCost,
                 onBuy = { viewModel.buyAutoClickerSpeed() },
             )
@@ -158,7 +162,7 @@ fun UpgradesScreen(
             UpgradeCard(
                 title = stringResource(R.string.upgrade_combo_bonus),
                 description = stringResource(R.string.upgrade_combo_bonus_desc, maxCombo),
-                subtitle = "${stringResource(R.string.cost)}: $comboCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(comboCost)}",
                 canBuy = state.points >= comboCost,
                 onBuy = { viewModel.buyComboBonus() },
             )
@@ -167,7 +171,7 @@ fun UpgradesScreen(
             UpgradeCard(
                 title = stringResource(R.string.upgrade_offline_multiplier),
                 description = stringResource(R.string.upgrade_offline_multiplier_desc, state.offlineMultiplier),
-                subtitle = "${stringResource(R.string.cost)}: $offlineMultCost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(offlineMultCost)}",
                 canBuy = state.points >= offlineMultCost,
                 onBuy = { viewModel.buyOfflineMultiplier() },
             )
@@ -182,7 +186,7 @@ fun UpgradesScreen(
             UpgradeCard(
                 title = stringResource(R.string.upgrade_premium_1),
                 description = stringResource(R.string.upgrade_premium_1_desc, premium1Bonus),
-                subtitle = "${stringResource(R.string.cost)}: $premium1Cost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(premium1Cost)}",
                 canBuy = state.points >= premium1Cost,
                 onBuy = { viewModel.buyPremiumUpgrade1() },
             )
@@ -192,7 +196,7 @@ fun UpgradesScreen(
             UpgradeCard(
                 title = stringResource(R.string.upgrade_premium_2),
                 description = stringResource(R.string.upgrade_premium_2_desc, premium2Bonus),
-                subtitle = "${stringResource(R.string.cost)}: $premium2Cost",
+                subtitle = "${stringResource(R.string.cost)}: ${NumberFormatter.format(premium2Cost)}",
                 canBuy = state.points >= premium2Cost,
                 onBuy = { viewModel.buyPremiumUpgrade2() },
             )
