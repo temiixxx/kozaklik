@@ -98,3 +98,12 @@ app/build/generated/kapt/
 # Large archive files
 *.zip
 ._gradle_tmp/
+
+# Keystore files (не коммитьте!)
+keystore.properties
+*.jks
+*.keystore
+
+# Но разрешаем APK в папке releases для GitHub Releases
+!releases/
+releases/*.apk
