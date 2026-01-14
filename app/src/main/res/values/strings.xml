@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Кликер козы</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_game">Игра</string>
+    <string name="nav_info">Инфо</string>
+    <string name="nav_only_in_app">Только в приложении</string>
+
+    <!-- Info -->
+    <string name="info_title">Информация</string>
+    <string name="info_about">О приложении</string>
+    <string name="info_tutorial">Инструкция</string>
+    <string name="info_stats">Статистика</string>
+    <string name="info_achievements">Достижения</string>
+    <string name="info_made_by">Разработано командой ВайбКрафт&amp;КоморкаПродакшен</string>
+    <string name="info_kamorka">kamorka.online</string>
+
+    <!-- Game -->
+    <string name="game_title">Кликер</string>
+    <string name="game_click">Клик!</string>
+    <string name="game_points">Очки</string>
+    <string name="game_upgrades">Улучшения</string>
+    <string name="game_stats">Статистика</string>
+    <string name="game_tap_power">Сила тапа</string>
+    <string name="game_auto_clickers">Авто-кликеры</string>
+
+    <string name="upgrades_title">Прокачка</string>
+    <string name="upgrade_tap_power">Улучшить тап</string>
+    <string name="upgrade_auto_clicker">Купить авто-кликер</string>
+    <string name="upgrade_auto_power">Усилить авто‑клик</string>
+    <string name="cost">Цена</string>
+    <string name="not_enough_points">Не хватает очков</string>
+    
+    <!-- Новые улучшения -->
+    <string name="upgrade_points_multiplier">Множитель очков</string>
+    <string name="upgrade_points_multiplier_desc">Увеличивает все получаемые очки в %1$d раз</string>
+    <string name="upgrade_auto_speed">Ускорение авто-кликеров</string>
+    <string name="upgrade_auto_speed_desc">Авто-кликеры работают в %1$d раз быстрее</string>
+    <string name="upgrade_combo_bonus">Бонус за комбо</string>
+    <string name="upgrade_combo_bonus_desc">Максимальный множитель комбо: x%1$d</string>
+    <string name="upgrade_offline_multiplier">Множитель офлайн-дохода</string>
+    <string name="upgrade_offline_multiplier_desc">Офлайн-доход увеличен в %1$d раз</string>
+    <string name="upgrade_premium_1">Премиум улучшение I</string>
+    <string name="upgrade_premium_1_desc">Увеличивает все параметры на %1$d%%</string>
+    <string name="upgrade_premium_2">Премиум улучшение II</string>
+    <string name="upgrade_premium_2_desc">Увеличивает все параметры на %1$d%%</string>
+    
+    <string name="upgrade_category_basic">Базовые</string>
+    <string name="upgrade_category_multipliers">Множители</string>
+    <string name="upgrade_category_premium">Премиум</string>
+    <string name="upgrade_category_goat">Улучшения для козы</string>
+    <string name="upgrade_level">Уровень %1$d</string>
+    
+    <!-- Улучшения для козы -->
+    <string name="upgrade_goat_pen">Улучшить загон</string>
+    <string name="upgrade_goat_pen_desc">Уровень загона: %1$d (+20%% за уровень)</string>
+    <string name="upgrade_goat_food">Улучшить еду</string>
+    <string name="upgrade_goat_food_desc">Уровень еды: %1$d (+15%% за уровень)</string>
+    
+    <!-- Коморка -->
+    <string name="room_title">Коморка</string>
+    <string name="room_button">Коморка</string>
+    <string name="room_description">Покупай оборудование для коморки и получай пассивный доход!</string>
+    <string name="room_fridge">Холодильник</string>
+    <string name="room_fridge_desc">Уровень: %1$d</string>
+    <string name="room_printer">Принтер</string>
+    <string name="room_printer_desc">Уровень: %1$d</string>
+    <string name="room_scanner">Сканер</string>
+    <string name="room_scanner_desc">Уровень: %1$d</string>
+    <string name="room_printer3d">3D Принтер</string>
+    <string name="room_printer3d_desc">Уровень: %1$d</string>
+    
+    <!-- Майнинг -->
+    <string name="mining_title">Майнинг</string>
+    <string name="mining_button">Майнинг</string>
+    <string name="mining_power">Мощность майнинга</string>
+    <string name="mining_description">Майни криптовалюту и продавай за очки!</string>
+    <string name="mining_upgrade">Улучшить майнинг</string>
+</resources>
+

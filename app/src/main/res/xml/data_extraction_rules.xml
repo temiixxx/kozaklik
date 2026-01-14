@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Avoid syncing game progress to cloud backup by default -->
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="files" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <!-- Allow device-to-device transfer -->
+        <include domain="database" path="." />
+        <include domain="sharedpref" path="." />
+        <include domain="files" path="." />
+    </device-transfer>
+</data-extraction-rules>
+
